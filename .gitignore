@@ -1,0 +1,37 @@
+# IntelliJ IDEA
+.idea/
+*.iml
+out/
+*.ipr
+*.iws
+
+# Compilados Java
+*.class
+*.jar
+*.war
+*.ear
+
+# Build genérico (por si usas otros sistemas)
+bin/
+build/
+dist/
+target/
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+
+# Logs y temporales
+*.log
+*.tmp
+*.swp
+
+# Datos generados por la app
+data/
+
+# SSL: se suelen generar para el entorno local
+ssl/
+*.jks
+*.p12
+*.keystore
+*.truststore
