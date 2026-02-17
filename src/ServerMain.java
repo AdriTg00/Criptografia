@@ -1,6 +1,7 @@
 import server.SecurityPolicy;
 import server.UserStore;
 import server.MessageStore;
+import crypto.RSAUtil;
 
 import java.io.IOException;
 import java.net.ServerSocket;
@@ -14,6 +15,7 @@ SERVERMAIN
 Esta clase:
 
 - Arranca el servidor.
+- Genera el par de claves RSA.
 - Abre un puerto.
 - Espera clientes.
 - Crea un hilo ClientHandler por cada cliente.
@@ -22,10 +24,20 @@ Esta clase:
 
 public class ServerMain {
 
-
     public static final int PORT = 15000;
 
     public static void main(String[] args) {
+
+        // 🔐 Inicializar claves RSA del servidor
+        try {
+            RSAUtil.init();
+            System.out.println("[OK] Claves RSA generadas correctamente");
+        } catch (Exception e) {
+            System.err.println("Error inicializando RSA");
+            e.printStackTrace();
+            return;
+        }
+
         SecurityPolicy securityPolicy = new SecurityPolicy();
 
         System.out.println("=== SecureDrop Server v1 (INSEGURA) ===");
@@ -35,12 +47,8 @@ public class ServerMain {
         MessageStore messageStore = new MessageStore("data");
 
         try (
-                // =====================================================
-                // TODO 1:
-                // Cambiar ServerSocket por SSLServerSocket.
-                //
-                // Esto activará comunicación cifrada (TLS).
-                // =====================================================
+                // ⚠️ De momento sigue siendo ServerSocket
+                // Alejandro lo migrará a SSLServerSocket
                 ServerSocket serverSocket = new ServerSocket(PORT)
         ) {
 
@@ -51,27 +59,19 @@ public class ServerMain {
                 System.out.println("[+] Cliente conectado: "
                         + client.getRemoteSocketAddress());
 
-                // =====================================================
-                // TODO 2:
-                // Se podría añadir:
-                // - Timeout de conexión
-                // - Registro en archivo log
-                // =====================================================
-
                 new Thread(
-                        new server.ClientHandler(client, userStore, messageStore, securityPolicy)
+                        new server.ClientHandler(
+                                client,
+                                userStore,
+                                messageStore,
+                                securityPolicy
+                        )
                 ).start();
             }
 
         } catch (IOException e) {
 
-            // =====================================================
-            // TODO 3:
-            // No mostrar detalles técnicos.
-            // Mostrar solo mensaje genérico y guardar log.
-            // =====================================================
-
-            System.err.println("Error en el servidor: " + e);
+            System.err.println("Error en el servidor");
             e.printStackTrace();
         }
     }

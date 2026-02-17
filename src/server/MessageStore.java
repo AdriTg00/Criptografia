@@ -1,20 +1,14 @@
 package server;
 
-import java.io.*;
+import crypto.HybridCrypto;
+
+import javax.crypto.AEADBadTagException;
+import java.io.File;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.text.SimpleDateFormat;
 import java.util.*;
-
-/*
-MessageStore se encarga de:
-
-- Guardar mensajes en la carpeta data/
-- Listar mensajes
-- Leer archivos
-
-Actualmente guarda todo en texto plano (inseguro).
-Aquí es donde se aplicará el cifrado AES.
-*/
 
 public class MessageStore {
 
@@ -25,51 +19,36 @@ public class MessageStore {
     public MessageStore(String dir) {
         this.baseDir = new File(dir);
 
-        // Si la carpeta no existe, la crea automáticamente
         if (!baseDir.exists()) baseDir.mkdirs();
     }
 
+    // 🔐 Guardar mensaje cifrado
     public File storeMessage(String username, String message)
-            throws IOException {
+            throws Exception {
 
         String ts = fmt.format(new Date());
         File f = new File(baseDir,
-                username + "_" + ts + ".txt");
+                username + "_" + ts + ".bin");  // extensión binaria
 
-        try (Writer w = new OutputStreamWriter(
-                new FileOutputStream(f),
-                StandardCharsets.UTF_8)) {
+        // Convertir mensaje a bytes
+        byte[] data = message.getBytes(StandardCharsets.UTF_8);
 
-            w.write("From: " + username + "\n");
-            w.write("Date: " + new Date() + "\n");
-            w.write("Message:\n");
+        // 🔐 Cifrar usando esquema híbrido
+        byte[] encryptedData = HybridCrypto.encrypt(data);
 
-            // =====================================================
-            // TODO 1: CIFRAR MENSAJE
-            //
-            // Ahora mismo el mensaje se guarda en texto normal.
-            //
-            // En la versión segura:
-            //
-            // 1) Generar clave AES.
-            // 2) Cifrar el mensaje.
-            // 3) Guardar el mensaje cifrado en el archivo.
-            //
-            // El archivo NO debe poder leerse directamente.
-            // =====================================================
-
-            w.write(message + "\n");
-        }
+        // Guardar bytes cifrados
+        Files.write(f.toPath(), encryptedData);
 
         return f;
     }
 
+    // 📂 Listar mensajes de un usuario
     public List<File> listMessagesForUser(String username) {
 
         File[] files = baseDir.listFiles(
                 (d, name) ->
                         name.startsWith(username + "_")
-                                && name.endsWith(".txt"));
+                                && name.endsWith(".bin"));
 
         if (files == null)
             return Collections.emptyList();
@@ -81,10 +60,11 @@ public class MessageStore {
         return Arrays.asList(files);
     }
 
+    // 📂 Listar todos los mensajes (ADMIN)
     public List<File> listAllMessages() {
 
         File[] files = baseDir.listFiles(
-                (d, name) -> name.endsWith(".txt"));
+                (d, name) -> name.endsWith(".bin"));
 
         if (files == null)
             return Collections.emptyList();
@@ -96,38 +76,26 @@ public class MessageStore {
         return Arrays.asList(files);
     }
 
-    public String readFile(File f) throws IOException {
+    // 🔓 Leer y descifrar mensaje
+    public String readFile(File f) {
 
-        try (BufferedReader br =
-                     new BufferedReader(
-                             new InputStreamReader(
-                                     new FileInputStream(f),
-                                     StandardCharsets.UTF_8))) {
+        try {
 
-            StringBuilder sb = new StringBuilder();
-            String line;
+            byte[] fileBytes = Files.readAllBytes(f.toPath());
 
-            while ((line = br.readLine()) != null) {
-                sb.append(line).append("\n");
-            }
+            // 🔓 Descifrar con HybridCrypto
+            byte[] decrypted = HybridCrypto.decrypt(fileBytes);
 
-            String contenido = sb.toString();
+            return new String(decrypted, StandardCharsets.UTF_8);
 
-            // =====================================================
-            // TODO 2: DESCIFRAR MENSAJE
-            //
-            // Cuando los mensajes estén cifrados con AES,
-            // el contenido del archivo será ilegible.
-            //
-            // Aquí habrá que:
-            //
-            // 1) Leer el texto cifrado.
-            // 2) Descifrarlo con la misma clave AES.
-            // 3) Devolver el mensaje ya descifrado.
-            //
-            // =====================================================
+        } catch (AEADBadTagException e) {
 
-            return contenido;
+            // Detecta manipulación (integridad rota)
+            return "[ERROR: Fichero manipulado o corrupto]";
+
+        } catch (Exception e) {
+
+            return "[ERROR: No se pudo descifrar el fichero]";
         }
     }
 }
