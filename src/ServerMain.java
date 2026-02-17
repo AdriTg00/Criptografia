@@ -1,3 +1,4 @@
+import server.SecurityPolicy;
 import server.UserStore;
 import server.MessageStore;
 
@@ -21,9 +22,11 @@ Esta clase:
 
 public class ServerMain {
 
+
     public static final int PORT = 15000;
 
     public static void main(String[] args) {
+        SecurityPolicy securityPolicy = new SecurityPolicy();
 
         System.out.println("=== SecureDrop Server v1 (INSEGURA) ===");
         System.out.println("Puerto: " + PORT);
@@ -56,7 +59,7 @@ public class ServerMain {
                 // =====================================================
 
                 new Thread(
-                        new server.ClientHandler(client, userStore, messageStore)
+                        new server.ClientHandler(client, userStore, messageStore, securityPolicy)
                 ).start();
             }
 

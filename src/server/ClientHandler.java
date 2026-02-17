@@ -8,6 +8,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Optional;
 
+import static java.lang.System.out;
+
 /*
 =========================================================
 CLIENTHANDLER
@@ -28,14 +30,17 @@ public class ClientHandler implements Runnable {
     private final Socket socket;
     private final UserStore userStore;
     private final MessageStore messageStore;
+    private final SecurityPolicy securityPolicy;
 
-    private UserStore.User sessionUser = null;
-
-    public ClientHandler(Socket socket, UserStore userStore, MessageStore messageStore) {
+    public ClientHandler(Socket socket, UserStore userStore, MessageStore messageStore, SecurityPolicy securityPolicy) {
         this.socket = socket;
         this.userStore = userStore;
         this.messageStore = messageStore;
+        this.securityPolicy = securityPolicy;
     }
+
+    private UserStore.User sessionUser = null;
+
 
     @Override
     public void run() {
@@ -53,12 +58,11 @@ public class ClientHandler implements Runnable {
 
             while ((line = in.readLine()) != null) {
 
-                // =====================================================
-                // TODO 1:
-                // Si alguien envía una línea demasiado larga
-                // (por ejemplo más de 500 caracteres),
-                // rechazarla con error.
-                // =====================================================
+                if (line.length() > 500) {
+                    out.println(Protocol.ERR + " Linea demasiado larga");
+                    continue;
+                }
+
 
                 line = line.trim();
                 if (line.isEmpty()) continue;
@@ -105,27 +109,32 @@ public class ClientHandler implements Runnable {
             }
 
         } catch (Exception e) {
-
-            // =====================================================
-            // TODO 2:
-            // Ahora mismo se muestra el error completo (stacktrace).
-            //
-            // En la versión segura hay que:
-            //
-            // 1) NO mostrar detalles técnicos al cliente.
-            // 2) Mostrar solo un mensaje genérico: "Error interno".
-            // 3) Guardar el error real en un archivo de log.
-            // =====================================================
+            out.println(Protocol.ERR + " Error interno");
+            logError("Error en handler para usuario " +
+                    (sessionUser != null ? sessionUser.username : "<no autenticado>"), e);
 
             System.err.println("Error en handler: " + e);
             e.printStackTrace();
 
         } finally {
-            try { socket.close(); } catch (IOException ignored) {}
+            try {
+                socket.close();
+            } catch (IOException ignored) {
+            }
         }
     }
 
+    private void logError(String msg, Exception e) {
+        try (FileWriter fw = new FileWriter("server-errors.log", true);
+             PrintWriter pw = new PrintWriter(fw)) {
+            pw.println("[" + new java.util.Date() + "] " + msg);
+            e.printStackTrace(pw);
+        } catch (IOException ignored) {}
+    }
+
+
     private void handleLogin(String rest, PrintWriter out) {
+
 
         // =====================================================
         // TODO 3: Mejorar autenticación
@@ -157,6 +166,12 @@ public class ClientHandler implements Runnable {
         String user = parts[0].trim();
         String pass = parts[1].trim();
 
+        // 1) Comprobar si el usuario está bloqueado
+        if (securityPolicy.isBlocked(user)) {
+            out.println(Protocol.ERR + " Usuario bloqueado temporalmente por intentos fallidos");
+            return;
+        }
+
         Optional<UserStore.User> u = userStore.authenticate(user, pass);
 
         if (u.isPresent()) {
@@ -164,6 +179,7 @@ public class ClientHandler implements Runnable {
             out.println(Protocol.OK + " Autenticado como "
                     + sessionUser.username + " (" + sessionUser.role + ")");
         } else {
+            securityPolicy.registerFailure(user);
             out.println(Protocol.ERR + " Credenciales incorrectas");
         }
     }
@@ -177,18 +193,16 @@ public class ClientHandler implements Runnable {
 
         try {
 
-            // =====================================================
-            // TODO 4:
-            // Antes de guardar:
-            // 1) Comprobar que el mensaje no sea demasiado largo.
-            // 2) Cifrar el mensaje con AES antes de guardarlo.
-            //
-            // AES es un algoritmo de cifrado simétrico:
-            // - Usa una clave secreta.
-            // - Con esa clave se cifra.
-            // - Con la misma clave se descifra.
-            // Ahora mismo se guarda en texto normal.
-            // =====================================================
+            String trimmed = message == null ? "" : message.trim();
+            if (trimmed.isEmpty()) {
+                out.println(Protocol.ERR + " Uso: SEND <mensaje>");
+                return;
+            }
+            if (trimmed.length() > 1000) {
+                out.println(Protocol.ERR + " Mensaje demasiado largo");
+                return;
+            }
+
 
             messageStore.storeMessage(sessionUser.username, message);
 
