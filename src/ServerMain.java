@@ -3,6 +3,7 @@ import server.UserStore;
 import server.MessageStore;
 import crypto.RSAUtil;
 
+import javax.net.ssl.*;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -46,12 +47,18 @@ public class ServerMain {
         UserStore userStore = new UserStore("users.txt");
         MessageStore messageStore = new MessageStore("data");
 
-        try (
-                // ⚠️ De momento sigue siendo ServerSocket
-                // Alejandro lo migrará a SSLServerSocket
-                ServerSocket serverSocket = new ServerSocket(PORT)
-        ) {
+        try {
+                // ANTES
+                //ServerSocket serverSocket = new ServerSocket(PORT)
+                // DESPUES
+                System.setProperty("javax.net.ssl.keyStore", "ssl/servidor_keystore.jks");
+                System.setProperty("javax.net.ssl.keyStorePassword", "123456");
 
+                SSLServerSocketFactory factory = (SSLServerSocketFactory) SSLServerSocketFactory.getDefault();
+
+                SSLServerSocket serverSocket = (SSLServerSocket) factory.createServerSocket(15000);
+
+                System.out.println("Servidor TLS iniciado...");
             while (true) {
 
                 Socket client = serverSocket.accept();

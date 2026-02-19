@@ -1,6 +1,7 @@
 import protocol.Protocol;
 import util.IOUtil;
 
+import javax.net.ssl.*;
 import java.io.*;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
@@ -37,21 +38,23 @@ public class ClientMain {
         String portStr = sc.nextLine().trim();
         int port = portStr.isEmpty() ? 15000 : Integer.parseInt(portStr);
 
-        try (
-                // =====================================================
-                // TODO 1:
-                // Cambiar Socket por SSLSocket.
-                // Esto activará comunicación cifrada (TLS).
-                // =====================================================
-                Socket socket = new Socket(host, port);
+        try{
+            // ANTES
+            //Socket socket = new Socket(host, port);
+            // DESPUES
+            System.setProperty("javax.net.ssl.trustStore", "ssl/cliente_truststore.jks");
+            System.setProperty("javax.net.ssl.trustStorePassword", "123456");
 
-                BufferedReader in = new BufferedReader(
-                        new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
+            SSLSocketFactory factory = (SSLSocketFactory) SSLSocketFactory.getDefault();
+            SSLSocket socket =
+                    (SSLSocket) factory.createSocket("localhost", 15000);
 
-                PrintWriter out = new PrintWriter(
-                        new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8), true)
-        ) {
 
+            BufferedReader in = new BufferedReader(
+                    new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
+
+            PrintWriter out = new PrintWriter(
+                    new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8), true);
             // LOGIN
             System.out.print("Usuario: ");
             String user = sc.nextLine().trim();
